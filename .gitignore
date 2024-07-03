@@ -1,3 +1,9 @@
 secrets/*
 servers/large.html
 servers/chromium/libraries
+boringssl/
+aioquic/
+keyAndCert/
+keys/
+cert.pem
+key.key

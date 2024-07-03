@@ -176,7 +176,7 @@ async def perform_http_request(
         http_events = await client.get(url)
         method = "GET"
     elapsed = time.time() - start
-
+    print("perform http re")
     # print speed
     octets = 0
     for http_event in http_events:
@@ -305,7 +305,7 @@ def start_client(url, configuration, dbg=False):
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
         level= logging.DEBUG if dbg else logging.INFO,
     )
-
+    print("heoo")
     if uvloop is not None:
         uvloop.install()
     loop = asyncio.new_event_loop()
